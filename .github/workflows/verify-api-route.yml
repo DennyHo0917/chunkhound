@@ -1,0 +1,41 @@
+name: API Route Linux verification
+on:
+  push:
+    branches: [verify/api-route-provider]
+permissions:
+  contents: read
+jobs:
+  full-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CHUNKHOUND_USE_EXISTING_SITE_DIST: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Resolve docs version
+        run: bash scripts/resolve_docs_version.sh
+      - name: Install and build website
+        run: |
+          npm ci --prefix site
+          npm run build --prefix site
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Build current native extension
+        uses: ./.github/actions/build-rust-extension
+      - name: Run complete suite
+        run: uv run pytest tests/ -v -n 4 --junit-xml=test-results.xml
+      - name: Save test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-results
+          path: test-results.xml
