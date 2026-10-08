@@ -31,8 +31,10 @@ jobs:
         run: uv sync --locked
       - name: Build current native extension
         uses: ./.github/actions/build-rust-extension
+      - name: Warm script runner cache
+        run: npm exec --prefix site -- node --version
       - name: Run complete suite
-        run: uv run pytest tests/ -v -n 4 --junit-xml=test-results.xml
+        run: uv run pytest tests/ -v -n 4 --dist=loadfile --junit-xml=test-results.xml
       - name: Save test results
         if: always()
         uses: actions/upload-artifact@v4
