@@ -1,0 +1,55 @@
+name: API Route follow-up baseline comparison
+on:
+  push:
+    branches: [verify/api-route-followup-20261014]
+permissions:
+  contents: read
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: baseline
+            ref: e0675a7a26d6553ff4ff666a63b09414fafd37b7
+          - label: pr-head
+            ref: e0dc93fb9421368a0029ccc5e0b4e2ecb27a1117
+    name: full-suite-${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CHUNKHOUND_USE_EXISTING_SITE_DIST: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Resolve docs version
+        run: bash scripts/resolve_docs_version.sh
+      - name: Install and build website
+        run: |
+          npm ci --prefix site
+          npm run build --prefix site
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Build current native extension
+        uses: ./.github/actions/build-rust-extension
+      - name: Warm script runner cache
+        run: npm exec --prefix site -- node --version
+      - name: Run smoke tests
+        run: uv run pytest tests/test_smoke.py -v -n auto
+      - name: Run complete suite with the previous verification settings
+        run: uv run pytest tests/ -v -n 4 --dist=loadfile --junit-xml=test-results.xml
+      - name: Save test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.label }}
+          path: test-results.xml
