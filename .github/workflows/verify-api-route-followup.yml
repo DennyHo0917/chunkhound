@@ -1,4 +1,4 @@
-name: API Route follow-up baseline comparison
+name: API Route follow-up validation
 on:
   push:
     branches: [verify/api-route-followup-20261014]
@@ -6,15 +6,7 @@ permissions:
   contents: read
 jobs:
   compare:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: baseline
-            ref: e0675a7a26d6553ff4ff666a63b09414fafd37b7
-          - label: pr-head
-            ref: e0dc93fb9421368a0029ccc5e0b4e2ecb27a1117
-    name: full-suite-${{ matrix.label }}
+    name: full-suite-with-interactive-test-isolation
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -22,7 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ matrix.ref }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
@@ -45,11 +36,13 @@ jobs:
         run: npm exec --prefix site -- node --version
       - name: Run smoke tests
         run: uv run pytest tests/test_smoke.py -v -n auto
+      - name: Verify interactive test with inherited MCP mode
+        run: CHUNKHOUND_MCP_MODE=1 uv run pytest tests/integration/test_cli_timeout_prompt_real.py -v
       - name: Run complete suite with the previous verification settings
         run: uv run pytest tests/ -v -n 4 --dist=loadfile --junit-xml=test-results.xml
       - name: Save test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.label }}
+          name: test-results-fixed
           path: test-results.xml
